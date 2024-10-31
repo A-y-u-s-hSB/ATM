@@ -1,0 +1,307 @@
+// username : user1
+// password : 1234
+// username : user2
+// password : 2345
+// username : user3
+// password : 3456
+
+import java.awt.*;
+import java.util.ArrayList;
+import javax.swing.*;
+
+// Class representing a single transaction (withdrawal, deposit, transfer)
+class Transaction {
+    String type;
+    double amount;
+
+    Transaction(String type, double amount) {
+        this.type = type;
+        this.amount = amount;
+    }
+
+    @Override
+    public String toString() {
+        return type + ": " + amount;
+    }
+}
+
+// Class representing an Account with basic functionality
+class Account {
+    private double balance;
+    private ArrayList<Transaction> transactionHistory;
+
+    Account() {
+        this.balance = 0.0;
+        this.transactionHistory = new ArrayList<>();
+    }
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public void deposit(double amount) {
+        if (amount > 0) {
+            balance += amount;
+            transactionHistory.add(new Transaction("Deposit", amount));
+        }
+    }
+
+    public boolean withdraw(double amount) {
+        if (amount > 0 && amount <= balance) {
+            balance -= amount;
+            transactionHistory.add(new Transaction("Withdraw", amount));
+            return true;
+        }
+        return false;
+    }
+
+    public boolean transfer(Account targetAccount, double amount) {
+        if (withdraw(amount)) {
+            targetAccount.deposit(amount);
+            transactionHistory.add(new Transaction("Transfer to Account", amount));
+            targetAccount.addTransaction(new Transaction("Transfer from Account", amount));
+            return true;
+        }
+        return false;
+    }
+
+    public void addTransaction(Transaction transaction) {
+        transactionHistory.add(transaction);
+    }
+
+    public ArrayList<Transaction> getTransactionHistory() {
+        return transactionHistory;
+    }
+}
+
+// Class representing a User with ID, PIN, and an associated Account
+class User {
+    String userId;
+    String pin;
+    Account account;
+
+    User(String userId, String pin) {
+        this.userId = userId;
+        this.pin = pin;
+        this.account = new Account();
+    }
+
+    public boolean verifyPin(String inputPin) {
+        return this.pin.equals(inputPin);
+    }
+
+    public Account getAccount() {
+        return account;
+    }
+}
+
+// Class representing the ATM functionality
+class ATM {
+    private User currentUser;
+
+    public void login(String userId, String pin, User[] users) {
+        for (User user : users) {
+            if (user.userId.equals(userId) && user.verifyPin(pin)) {
+                currentUser = user;
+                break;
+            }
+        }
+    }
+
+    public User getCurrentUser() {
+        return currentUser;
+    }
+
+    public boolean isUserLoggedIn() {
+        return currentUser != null;
+    }
+
+    public ArrayList<Transaction> getTransactionHistory() {
+        return currentUser.getAccount().getTransactionHistory();
+    }
+
+    public boolean deposit(double amount) {
+        if (currentUser != null) {
+            currentUser.getAccount().deposit(amount);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean withdraw(double amount) {
+        if (currentUser != null) {
+            return currentUser.getAccount().withdraw(amount);
+        }
+        return false;
+    }
+
+    public boolean transfer(User recipient, double amount) {
+        if (currentUser != null && recipient != null) {
+            return currentUser.getAccount().transfer(recipient.getAccount(), amount);
+        }
+        return false;
+    }
+}
+
+// Main class to run the ATM application
+public class ATMApp {
+    private static User[] users;
+    private static ATM atm;
+
+    public static void main(String[] args) {
+        // Creating some predefined users
+        users = new User[]{
+                new User("user1", "1234"),
+                new User("user2", "2345"),
+                new User("user3", "3456")
+        };
+
+        atm = new ATM();
+        SwingUtilities.invokeLater(ATMApp::createAndShowGUI);
+    }
+
+    public static void createAndShowGUI() {
+        JFrame frame = new JFrame("ATM Application");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 400);
+        frame.setLayout(new BorderLayout());
+
+        JPanel loginPanel = new JPanel();
+        loginPanel.setLayout(new GridLayout(3, 2));
+        JLabel userIdLabel = new JLabel("User ID:");
+        JTextField userIdField = new JTextField();
+        JLabel pinLabel = new JLabel("PIN:");
+        JPasswordField pinField = new JPasswordField();
+        JButton loginButton = new JButton("Login");
+
+        loginPanel.add(userIdLabel);
+        loginPanel.add(userIdField);
+        loginPanel.add(pinLabel);
+        loginPanel.add(pinField);
+        loginPanel.add(new JLabel()); // Empty cell for layout
+        loginPanel.add(loginButton);
+        frame.add(loginPanel, BorderLayout.NORTH);
+
+        JTextArea outputArea = new JTextArea();
+        outputArea.setEditable(false);
+        frame.add(new JScrollPane(outputArea), BorderLayout.CENTER);
+
+        // Login button action
+        loginButton.addActionListener(e -> {
+            String userId = userIdField.getText();
+            String pin = new String(pinField.getPassword());
+            atm.login(userId, pin, users);
+
+            if (atm.isUserLoggedIn()) {
+                outputArea.append("Login successful. Welcome, " + userId + "!\n");
+                loginPanel.setVisible(false); // Hide login panel
+                showMenu(outputArea);
+            } else {
+                outputArea.append("Invalid User ID or PIN. Please try again.\n");
+            }
+        });
+
+        frame.setVisible(true);
+    }
+
+    public static void showMenu(JTextArea outputArea) {
+        JFrame menuFrame = new JFrame("ATM Menu");
+        menuFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        menuFrame.setSize(400, 400);
+        menuFrame.setLayout(new GridLayout(6, 1));
+
+        JButton viewHistoryButton = new JButton("View Transaction History");
+        JButton withdrawButton = new JButton("Withdraw");
+        JButton depositButton = new JButton("Deposit");
+        JButton transferButton = new JButton("Transfer");
+        JButton quitButton = new JButton("Quit");
+
+        menuFrame.add(viewHistoryButton);
+        menuFrame.add(withdrawButton);
+        menuFrame.add(depositButton);
+        menuFrame.add(transferButton);
+        menuFrame.add(quitButton);
+
+        viewHistoryButton.addActionListener(e -> {
+            ArrayList<Transaction> history = atm.getTransactionHistory();
+            outputArea.setText(""); // Clear previous output
+            if (history.isEmpty()) {
+                outputArea.append("No transaction history available.\n");
+            } else {
+                outputArea.append("Transaction History:\n");
+                for (Transaction transaction : history) {
+                    outputArea.append(transaction + "\n");
+                }
+            }
+        });
+
+        withdrawButton.addActionListener(e -> {
+            String amountStr = JOptionPane.showInputDialog(menuFrame, "Enter amount to withdraw:");
+            if (amountStr != null) {
+                try {
+                    double amount = Double.parseDouble(amountStr);
+                    if (atm.withdraw(amount)) {
+                        outputArea.append("Successfully withdrew " + amount + ".\n");
+                    } else {
+                        outputArea.append("Invalid withdrawal amount or insufficient balance.\n");
+                    }
+                } catch (NumberFormatException ex) {
+                    outputArea.append("Invalid amount entered.\n");
+                }
+            }
+        });
+
+        depositButton.addActionListener(e -> {
+            String amountStr = JOptionPane.showInputDialog(menuFrame, "Enter amount to deposit:");
+            if (amountStr != null) {
+                try {
+                    double amount = Double.parseDouble(amountStr);
+                    atm.deposit(amount);
+                    outputArea.append("Successfully deposited " + amount + ".\n");
+                } catch (NumberFormatException ex) {
+                    outputArea.append("Invalid amount entered.\n");
+                }
+            }
+        });
+
+        transferButton.addActionListener(e -> {
+            String recipientUserId = JOptionPane.showInputDialog(menuFrame, "Enter the user ID of the recipient:");
+            String amountStr = JOptionPane.showInputDialog(menuFrame, "Enter amount to transfer:");
+            if (recipientUserId != null && amountStr != null) {
+                try {
+                    double amount = Double.parseDouble(amountStr);
+                    User recipient = findUserById(recipientUserId);
+
+                    if (recipient != null) {
+                        if (atm.transfer(recipient, amount)) {
+                            outputArea.append("Transferred " + amount + " to " + recipientUserId + ".\n");
+                        } else {
+                            outputArea.append("Transfer failed. Check the amount or balance.\n");
+                        }
+                    } else {
+                        outputArea.append("Recipient not found.\n");
+                    }
+                } catch (NumberFormatException ex) {
+                    outputArea.append("Invalid amount entered.\n");
+                }
+            }
+        });
+
+        quitButton.addActionListener(e -> {
+            outputArea.append("Thank you for using the ATM. Goodbye!\n");
+            menuFrame.dispose();
+        });
+
+        menuFrame.setVisible(true);
+    }
+
+    // Helper function to find a user by ID
+    private static User findUserById(String userId) {
+        for (User user : users) {
+            if (user.userId.equals(userId)) {
+                return user;
+            }
+        }
+        return null;
+    }
+}
